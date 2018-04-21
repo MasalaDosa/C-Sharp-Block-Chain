@@ -6,15 +6,17 @@ namespace BlockChain
 {
     /// <summary>
     /// A block has an index, timestamp, string data and a hash.
-    /// The hash includes the previous blocks hash,
+    /// The hash includes the previous blocks hash.
     /// </summary>
     public class Block
     {
-        public long Index { get; private set; }
-        public DateTime Timestamp { get; private set; }
-        public string Data { get; private set; }
-        public string PreviousHash { get; private set; }
-        public string Hash { get; private set; }
+        public long Index { get; set; }
+        public DateTime Timestamp { get; set; }
+        public string Data { get; set; }
+        public string PreviousHash { get; set; }
+        public string Hash { get; set; }
+        // For our proof of work.
+        long _nonce;
 
         internal Block(long index, string data, string previousHash)
         {
@@ -29,11 +31,12 @@ namespace BlockChain
         {
             StringBuilder hash = new StringBuilder();
             string toBeHashed = string.Format(
-                "{0}_{1}_{2}_{3}",
+                "{0}_{1}_{2}_{3}_{4}",
                 this.Index,
                 this.Timestamp.ToBinary(),
                 this.Data,
-                this.PreviousHash
+                this.PreviousHash,
+                this._nonce
             );
             using (var sha = SHA256.Create())
             {
@@ -47,14 +50,32 @@ namespace BlockChain
         }
 
         /// <summary>
-        /// Create an inital 'zero' block
+        /// In reality each miner would start iterating from a random point. 
+        /// Some miners may even try random numbers for nonce, or messing with the timestamp etc.
+        /// </summary>
+        /// <param name="difficulty">Difficulty.</param>
+        public void MineBlock(int difficulty)
+        {
+            // Create a string with difficulty * "0"
+            // We want to modify our data until the hash starts with this many 0s.
+            String target = new String(new char[difficulty]).Replace('\0', '0');  
+            while (!Hash.Substring(0, difficulty).Equals(target))
+            {
+                _nonce++;
+                this.Hash = HashBlock();
+            }
+            Console.WriteLine("Block Mined!!! : " + this.Hash);
+        }
+
+        /// <summary>
+        /// Create an initial 'Genesis' block
         /// </summary>
         /// <returns>The zero block.</returns>
-        internal static Block CreateZeroBlock()
+        internal static Block CreateGenesisBlock()
         {
             return new Block(
                 0,
-                "Zero Block",
+                "Genesis Block",
                 string.Empty
             );
         }
@@ -78,5 +99,5 @@ namespace BlockChain
         {
             return string.Format("Block {0} @ {1}: {2}\n Hash: {3}", Index, Timestamp, Data, Hash);
         }
-	}
+    }
 }

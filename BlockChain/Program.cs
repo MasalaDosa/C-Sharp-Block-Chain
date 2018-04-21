@@ -33,6 +33,8 @@ namespace BlockChain
             }
 
             // Try using the debugger to tamper with some data before doing the check below
+            // blockChain.Blocks[2].Data = "Changed";
+            // blockChain.Blocks.RemoveAt(2);
 
             // Check consistency
             Console.WriteLine("Consistent: {0}", blockChain.ConsistencyCheck());

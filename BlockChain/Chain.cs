@@ -9,18 +9,26 @@ namespace BlockChain
     /// </summary>
     public class Chain
     {
+        const int DIFFICULTY = 5;
         List<Block> _backingList;
 
         /// <summary>
-        /// Creates a new chain and initialises it with the 'zero block'
+        /// Creates a new chain and initialises it with the 'genesis block'
         /// </summary>
         public Chain()
         {
-            // Create backing list and zero block
-            _backingList = new List<Block>() 
-            { 
-                Block.CreateZeroBlock() 
+            var genesisBlock = Block.CreateGenesisBlock();
+            genesisBlock.MineBlock(DIFFICULTY);
+            _backingList = new List<Block>()
+            {
+                genesisBlock
             };
+        }
+
+        public Chain(List<Block> blocks)
+        {
+            _backingList = blocks ?? throw new ArgumentNullException("blocks");
+            if (!ConsistencyCheck()) throw new ArgumentException("Inconsistent chain", "blocks");
         }
 
         /// <summary>
@@ -30,32 +38,49 @@ namespace BlockChain
         /// <param name="data">Data.</param>
         public void Add(string data)
         {
-            _backingList.Add(
-                Block.CreateNextBlock(_backingList.Last(), data)
-            );
+            var newBlock = Block.CreateNextBlock(_backingList.Last(), data);
+            newBlock.MineBlock(DIFFICULTY);
+
+            _backingList.Add(newBlock);
         }
 
         /// <summary>
         /// Get the underlying list
-        /// (Actually a copy of it to prevent re-ordering / removal / etc)
         /// </summary>
         /// <value>The blocks.</value>
-        public IEnumerable<Block> Blocks => _backingList.ToList();
+        public List<Block> Blocks => _backingList;
 
         /// <summary>
         /// Ensure the chain is still consistent
         /// </summary>
-        /// <returns><c>true</c>, if check was consistencyed, <c>false</c> otherwise.</returns>
+        /// <returns><c>true</c>, if chain was consistent, <c>false</c> otherwise.</returns>
         public bool ConsistencyCheck()
         {
-            foreach (var b in Blocks)
+            String hashTarget = new String(new char[DIFFICULTY]).Replace('\0', '0');
+
+            for (int i = 0; i < _backingList.Count(); i++)
             {
-                if(b.HashBlock() != b.Hash)
+                // Does our hash match?
+                if (_backingList[i].HashBlock() != _backingList[i].Hash)
                 {
-                    Console.WriteLine("Inconsistent data found: {0}", b);
+                    Console.WriteLine("Inconsistent data found - Current hash not equal: {0}", _backingList[i]);
+                    return false;
+                }
+                // Does the previous hash match?
+                if (i > 1 && _backingList[i].PreviousHash != _backingList[i - 1].Hash)
+                {
+                    Console.WriteLine("Inconsistent data found - Previous hash not equal: {0}", _backingList[i]);
+                    return false;
+                }
+
+                // And check if hash is solved
+                if (!_backingList[i].Hash.Substring(0, DIFFICULTY).Equals(hashTarget))
+                {
+                    Console.WriteLine("This block hasn't been mined: {0}", _backingList[i]);
                     return false;
                 }
             }
+
             return true;
         }
     }
