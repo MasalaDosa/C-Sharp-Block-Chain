@@ -1,6 +1,8 @@
 ﻿using System;
-using System.Security.Cryptography;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace BlockChain
 {
@@ -18,35 +20,27 @@ namespace BlockChain
         // For our proof of work.
         long _nonce;
 
-        internal Block(long index, string data, string previousHash)
+        Block(long index, string data, string previousHash)
         {
-            this.Index = index;
-            this.Timestamp = DateTime.UtcNow;
-            this.Data = data;
-            this.PreviousHash = previousHash;
-            this.Hash = this.HashBlock();
+            Index = index;
+            Timestamp = DateTime.UtcNow;
+            Data = data;
+            PreviousHash = previousHash;
+            Hash = CalculateHash();
+			MineBlock(Chain.DIFFICULTY);
         }
 
-        internal string HashBlock()
+        internal string CalculateHash()
         {
-            StringBuilder hash = new StringBuilder();
             string toBeHashed = string.Format(
                 "{0}_{1}_{2}_{3}_{4}",
-                this.Index,
-                this.Timestamp.ToBinary(),
-                this.Data,
-                this.PreviousHash,
-                this._nonce
+                Index,
+                Timestamp.ToBinary(),
+                Data,
+                PreviousHash,
+                _nonce
             );
-            using (var sha = SHA256.Create())
-            {
-                Byte[] result = sha.ComputeHash(Encoding.UTF8.GetBytes(toBeHashed));
-                foreach (var b in result)
-                {
-                    hash.Append(b.ToString("x2"));
-                }
-            }
-            return hash.ToString();
+            return Utils.BytesToUTF8(Utils.Hash(toBeHashed.ToString(), string.Empty));
         }
 
         /// <summary>
@@ -54,17 +48,17 @@ namespace BlockChain
         /// Some miners may even try random numbers for nonce, or messing with the timestamp etc.
         /// </summary>
         /// <param name="difficulty">Difficulty.</param>
-        public void MineBlock(int difficulty)
+        void MineBlock(int difficulty)
         {
             // Create a string with difficulty * "0"
             // We want to modify our data until the hash starts with this many 0s.
-            String target = new String(new char[difficulty]).Replace('\0', '0');  
+            String target = new String(new char[difficulty]).Replace('\0', '0');
             while (!Hash.Substring(0, difficulty).Equals(target))
             {
                 _nonce++;
-                this.Hash = HashBlock();
+                Hash = CalculateHash();
             }
-            Console.WriteLine("Block Mined!!! : " + this.Hash);
+            Console.WriteLine("Block Mined: " + this.Hash);
         }
 
         /// <summary>
