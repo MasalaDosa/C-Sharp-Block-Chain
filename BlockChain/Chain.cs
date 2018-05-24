@@ -13,49 +13,54 @@ namespace BlockChain
     /// </summary>
     public class Chain
     {
+		List<Block> _backingList;
+
 		/// <summary>
         /// The difficulty of mining
         /// </summary>
         public const int DIFFICULTY = 2;
 
-        List<Block> _backingList;
+        /// <summary>
+        /// and the minimum allowed transaction size
+        /// </summary>
+		public const decimal MINIMUM_TRANSACTION = 0.1M;
+
+		/// <summary>
+		///  Shortcut dictionary to keep track of all unspent transactions.
+		/// </summary>
+		public Dictionary<string, TransactionOutput> Utxos = new Dictionary<string, TransactionOutput>();      
 
         /// <summary>
         /// Creates a new chain and initialises it with the 'genesis block'
         /// </summary>
         public Chain()
         {
-            var genesisBlock = Block.CreateGenesisBlock();
-            _backingList = new List<Block>()
+            _backingList = new List<Block>();
+        }
+
+        /// <summary>
+        /// Adds a block to the chain and mines it.
+        /// </summary>
+        /// <param name="b">The blue component.</param>
+        public void AddAndMineBlock(Block b)
+        {
+            _backingList.Add(b);
+            b.MineBlock(DIFFICULTY);
+        }
+
+        public Block CreateGenesisBlock()
+        {
+            return Block.CreateGenesisBlock();
+        }
+
+        public Block CreateNextBlock()
+        {
+            if(_backingList == null || _backingList.Count == 0)
             {
-                genesisBlock
-            };
+                throw new InvalidOperationException("Attempt to create next block on empty chain.  Create Genesis block first.");
+            }
+            return Block.CreateNextBlock(_backingList.Last());
         }
-
-        public Chain(List<Block> blocks)
-        {
-            if (blocks == null)
-                throw new ArgumentNullException("blocks");
-            _backingList = blocks;
-            if (!ConsistencyCheck()) throw new ArgumentException("Inconsistent chain", "blocks");
-        }
-
-        /// <summary>
-        /// Add the specified data to the chain by creating and mining a new block
-        /// </summary>
-        /// <returns>The add.</returns>
-        /// <param name="data">Data.</param>
-        public void Add(string data)
-        {
-            var newBlock = Block.CreateNextBlock(_backingList.Last(), data);
-            _backingList.Add(newBlock);
-        }
-
-        /// <summary>
-        /// Get the underlying list
-        /// </summary>
-        /// <value>The blocks.</value>
-        public List<Block> Blocks => _backingList;
 
         /// <summary>
         /// Ensure the chain is still consistent
@@ -64,6 +69,8 @@ namespace BlockChain
         public bool ConsistencyCheck()
         {
             String hashTarget = new String(new char[DIFFICULTY]).Replace('\0', '0');
+			Dictionary<String, TransactionOutput> tempUtxos = new Dictionary<string, TransactionOutput>(); //a temporary working list of unspent transactions at a given block state.
+            tempUtxos[_backingList[0].Transactions[0].Outputs[0].Id] = _backingList[0].Transactions[0].Outputs[0];
 
 			for (int i = 0; i < _backingList.Count(); i++)
 			{
@@ -86,8 +93,82 @@ namespace BlockChain
 					Console.WriteLine("This block hasn't been mined: {0}", _backingList[i]);
 					return false;
 				}
-			}
+
+                // Loop through transactions and checl they are all valid.
+                // Note that we skip the genesis block here since we've used that to create currency.
+                if (i > 0)
+                {
+                    TransactionOutput tempOutput;
+                    for (int t = 0; t < _backingList[i].Transactions.Count(); t++)
+                    {
+                        Transaction currentTransaction = _backingList[i].Transactions[t];
+
+                        if (!currentTransaction.VerifySignature())
+                        {
+                            Console.WriteLine("Signature on Transaction(" + t + ") is Invalid");
+                            return false;
+                        }
+
+                        if (currentTransaction.SumInputValues() != currentTransaction.SumOutputValues())
+                        {
+                            Console.WriteLine("Inputs are not equal to outputs on Transaction(" + t + ")");
+                            return false;
+                        }
+
+                        foreach (TransactionInput input in currentTransaction.Inputs)
+                        {
+                            tempOutput = tempUtxos[input.TransactionOutputId];
+
+                            if (tempOutput == null)
+                            {
+                                Console.WriteLine("Referenced input on Transaction(" + t + ") is Missing");
+                                return false;
+                            }
+
+                            if (input.Utxo.Value != tempOutput.Value)
+                            {
+                                Console.WriteLine("Referenced input Transaction(" + t + ") value is Invalid");
+                                return false;
+                            }
+
+                            tempUtxos.Remove(input.TransactionOutputId);
+                        }
+
+                        foreach (TransactionOutput output in currentTransaction.Outputs)
+                        {
+                            tempUtxos[output.Id] = output;
+                        }
+
+                        if (currentTransaction.Outputs[0].Recipient != currentTransaction.Recipient)
+                        {
+                            Console.WriteLine("Transaction(" + t + ") output recipient is not who it should be");
+                            return false;
+                        }
+                        if (currentTransaction.Outputs[1].Recipient != currentTransaction.Sender) // TODO
+                        {
+                            Console.WriteLine("Transaction(" + t + ") output 'change' is not sender.");
+                            return false;
+                        }
+                    }
+                }
+            }
+		    Console.WriteLine("Blockchain is valid");
             return true;
+        }	
+
+        /// <summary>
+        /// Dump this instance to console
+        /// </summary>
+        public void Dump()
+        {
+            // Dump the blocks
+            foreach (var b in _backingList)
+            {
+                Console.WriteLine(b);
+            }
+
+            // Check consistency
+            Console.WriteLine("Consistent: {0}", ConsistencyCheck());
         }
     }
 }

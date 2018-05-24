@@ -14,20 +14,44 @@ namespace BlockChain
     {
         public long Index { get; set; }
         public DateTime Timestamp { get; set; }
-        public string Data { get; set; }
+
+		public String MerkleRoot { get; set; }
+		public List<Transaction> Transactions { get; set; } = new List<Transaction>();
+          
         public string PreviousHash { get; set; }
         public string Hash { get; set; }
         // For our proof of work.
         long _nonce;
 
-        Block(long index, string data, string previousHash)
+        Block(long index, string previousHash)
         {
             Index = index;
             Timestamp = DateTime.UtcNow;
-            Data = data;
             PreviousHash = previousHash;
             Hash = CalculateHash();
-			MineBlock(Chain.DIFFICULTY);
+        }
+
+        /// <summary>
+        /// Adds a transaction to this block
+        /// </summary>
+        /// <returns><c>true</c>, if transaction was added, <c>false</c> otherwise.</returns>
+        /// <param name="transaction">Transaction.</param>
+        public bool AddTransaction(Transaction transaction, Chain chain)
+        {
+            //process transaction and check if valid, unless block is genesis block then ignore.
+            if (transaction == null) return false;
+
+            if ((PreviousHash != string.Empty)) // Test for not genesis block
+            {
+                if ((transaction.ProcessTransaction(chain) != true))
+                {
+                    Console.WriteLine("Transaction failed to process. Discarded.");
+                    return false;
+                }
+            }
+            Transactions.Add(transaction);
+            Console.WriteLine("Transaction Successfully added to Block");
+            return true;
         }
 
         internal string CalculateHash()
@@ -36,7 +60,7 @@ namespace BlockChain
                 "{0}_{1}_{2}_{3}_{4}",
                 Index,
                 Timestamp.ToBinary(),
-                Data,
+                MerkleRoot,
                 PreviousHash,
                 _nonce
             );
@@ -48,8 +72,9 @@ namespace BlockChain
         /// Some miners may even try random numbers for nonce, or messing with the timestamp etc.
         /// </summary>
         /// <param name="difficulty">Difficulty.</param>
-        void MineBlock(int difficulty)
+        public void MineBlock(int difficulty)
         {
+			MerkleRoot = Utils.MerkleRoot(Transactions);
             // Create a string with difficulty * "0"
             // We want to modify our data until the hash starts with this many 0s.
             String target = new String(new char[difficulty]).Replace('\0', '0');
@@ -69,7 +94,6 @@ namespace BlockChain
         {
             return new Block(
                 0,
-                "Genesis Block",
                 string.Empty
             );
         }
@@ -79,19 +103,23 @@ namespace BlockChain
         /// </summary>
         /// <returns>The next block.</returns>
         /// <param name="previousBlock">Previous block.</param>
-        /// <param name="data">Data.</param>
-        internal static Block CreateNextBlock(Block previousBlock, string data)
+        internal static Block CreateNextBlock(Block previousBlock)
         {
             return new Block(
                 previousBlock.Index + 1,
-                data,
                 previousBlock.Hash
             );
         }
 
         public override string ToString()
         {
-            return string.Format("Block {0} @ {1}: {2}\n Hash: {3}", Index, Timestamp, Data, Hash);
+            StringBuilder result = new StringBuilder();
+            result.AppendLine(string.Format("Block {0} @ {1}: {2}\n Hash: {3}", Index, Timestamp, MerkleRoot, Hash));
+            foreach (var t in Transactions)
+            {
+                result.AppendLine(string.Format("\t{0}", t.ToString()));
+            }
+            return result.ToString();
         }
     }
 }

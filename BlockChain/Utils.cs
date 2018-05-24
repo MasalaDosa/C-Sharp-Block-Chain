@@ -78,5 +78,35 @@ namespace BlockChain
             signer.BlockUpdate(bytes, 0, bytes.Length);
 			return signer.VerifySignature(signature);
         }
+        
+        /// <summary>
+        /// Gets the merkle root given a list of transactions
+        /// </summary>
+        /// <returns>The merkle root.</returns>
+        /// <param name="transactions">Transactions.</param>
+        public static String MerkleRoot(List<Transaction> transactions)
+        {
+            int count = transactions.Count();
+            List<String> previousTreeLayer = new List<String>();
+            foreach (Transaction transaction in transactions)
+            {
+                previousTreeLayer.Add(transaction.TransactionId);
+            }
+            
+            List<String> treeLayer = previousTreeLayer;
+            while (count > 1)
+            {
+                treeLayer = new List<String>();
+                for (int i = 1; i < previousTreeLayer.Count(); i++)
+                {
+					treeLayer.Add(BytesToUTF8(Hash(previousTreeLayer[i - 1] + previousTreeLayer[i], string.Empty)));
+                }
+                count = treeLayer.Count();
+                previousTreeLayer = treeLayer;
+            }
+            return treeLayer.Count() == 1 ? 
+				            treeLayer[0] : 
+				            string.Empty;
+        }
     }
 }
